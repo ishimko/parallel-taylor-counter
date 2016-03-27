@@ -33,9 +33,10 @@ int write_result(const int array_size, FILE *tmp_file, FILE *result_file, const 
     int pid, i;
     double member_value;
     rewind(tmp_file);
+    errno = 0;
     while (!feof(tmp_file)) {
-        if (fscanf(tmp_file, "%d %d %lf", &pid, &i, &member_value) == -1){
-            print_error(module_name, "Error while reading results from temp file", strerror(errno));
+        if (fscanf(tmp_file, "%d %d %lf", &pid, &i, &member_value) == EOF && (errno != 0)){
+            print_error(module_name, "Error while reading results from temp file:", strerror(errno));
             return 1;
         }
         result[i] += member_value;
@@ -53,7 +54,7 @@ int write_result(const int array_size, FILE *tmp_file, FILE *result_file, const 
         return 1;
     }
     if (fclose(tmp_file) == -1){
-        print_error(module_name, "Error clo", strerror(errno));
+        print_error(module_name, "Error closing temp file: ", strerror(errno));
         return 1;
     }
     return 0;
@@ -73,31 +74,36 @@ int count_function_values(const int array_size, const int taylor_members_count, 
     }
 
     pid_t pid;
+    int running_processes = 0;
     for (int i = 0; i < array_size; i++) {
         double x = M_PI - (2 * M_PI * i) / array_size;
         for (int j = 0; j < taylor_members_count; j++) {
+            if (running_processes == taylor_members_count){
+                wait(NULL);
+                running_processes--;
+            }
             pid = fork();
+
             if (pid == 0) {
                 double member = get_sin_taylor_member(x, j);
-                fprintf(tmp_file, "%d %d %lf\n", getpid(), i, member);
+                if (fprintf(tmp_file, "%d %d %lf\n", getpid(), i, member) == -1){
+                    print_error(module_name, "Error writing result to temp file", NULL);
+                    return -1;
+                };
                 printf("%d %d %lf\n", getpid(), i, member);
-                return -1;
+                return 0;
             } else if (pid == -1) {
                 print_error(module_name, strerror(errno), NULL);
                 fclose(result_file);
                 fclose(tmp_file);
                 return 1;
             }
-        }
-        while ((wait(NULL)) > 0) {
-        }
-        if (errno != ECHILD){
-            print_error(module_name, strerror(errno), NULL);
-            fclose(result_file);
-            fclose(tmp_file);
-            return 1;
+            running_processes++;
         }
     }
+
+    while (wait(NULL) > 0){};
+
     return write_result(array_size, tmp_file, result_file, result_path);
 }
 
