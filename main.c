@@ -6,6 +6,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <sys/wait.h>
+`#include <limits.h>
 
 #define ARGS_COUNT 4
 
@@ -23,34 +24,52 @@ double get_sin_taylor_member(double x, int member_number) {
     return (member_number % 2) ? -result : result;
 }
 
-void write_result(const int array_size, FILE *tmp_file, FILE *result_file) {
+int write_result(const int array_size, FILE *tmp_file, FILE *result_file, const char* result_path) {
     double *result = alloca(sizeof(double) * array_size);
     memset(result, 0, sizeof(double) * array_size);
+    char* full_result_path = alloca(PATH_MAX);
+    realpath(result_path, full_result_path);
 
     int pid, i;
     double member_value;
     rewind(tmp_file);
     while (!feof(tmp_file)) {
-        fscanf(tmp_file, "%d %d %lf", &pid, &i, &member_value);
+        if (fscanf(tmp_file, "%d %d %lf", &pid, &i, &member_value) == -1){
+            print_error(module_name, "Error while reading results from temp file", strerror(errno));
+            return 1;
+        }
         result[i] += member_value;
     }
 
     for (i = 0; i < array_size; i++) {
-        fprintf(result_file, "y[%d]=%lf\n", i, result[i]);
+        if (fprintf(result_file, "y[%d]=%lf\n", i, result[i]) == -1){
+            print_error(module_name, strerror(errno), full_result_path);
+            return 1;
+        };
     }
 
+    if (fclose(result_file) == -1){
+        print_error(module_name, strerror(errno), full_result_path);
+        return 1;
+    }
+    if (fclose(tmp_file) == -1){
+        print_error(module_name, "Error clo", strerror(errno));
+        return 1;
+    }
+    return 0;
 }
 
-void count_function_values(const int array_size, const int taylor_members_count, const char *result_path) {
+int count_function_values(const int array_size, const int taylor_members_count, const char *result_path) {
     FILE *result_file, *tmp_file;
     if (!(result_file = fopen(result_path, "w+"))) {
         print_error(module_name, strerror(errno), result_path);
-        return;
+        return 1;
     }
 
     if (!(tmp_file = tmpfile())) {
         print_error(module_name, strerror(errno), NULL);
-        return;
+        fclose(result_file);
+        return 1;
     }
 
     pid_t pid;
@@ -62,16 +81,24 @@ void count_function_values(const int array_size, const int taylor_members_count,
                 double member = get_sin_taylor_member(x, j);
                 fprintf(tmp_file, "%d %d %lf\n", getpid(), i, member);
                 printf("%d %d %lf\n", getpid(), i, member);
-                return;
+                return -1;
             } else if (pid == -1) {
                 print_error(module_name, strerror(errno), NULL);
-                return;
+                fclose(result_file);
+                fclose(tmp_file);
+                return 1;
             }
         }
-        while (wait(NULL) > 0) {
+        while ((wait(NULL)) > 0) {
+        }
+        if (errno != ECHILD){
+            print_error(module_name, strerror(errno), NULL);
+            fclose(result_file);
+            fclose(tmp_file);
+            return 1;
         }
     }
-    write_result(array_size, tmp_file, result_file);
+    return write_result(array_size, tmp_file, result_file, result_path);
 }
 
 int main(int argc, char *argv[]) {
@@ -92,7 +119,5 @@ int main(int argc, char *argv[]) {
         return 1;
     };
 
-    count_function_values(array_size, taylor_members_count, argv[3]);
-
-    return 0;
+    return count_function_values(array_size, taylor_members_count, argv[3]);
 }
