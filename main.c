@@ -43,7 +43,7 @@ int write_result(const int array_size, FILE *tmp_file, FILE *result_file, const 
     }
 
     for (i = 0; i < array_size; i++) {
-        if (fprintf(result_file, "y[%d]=%lf\n", i, result[i]) == -1){
+        if (fprintf(result_file, "y[%d]=%.5lf\n", i, result[i]) == -1){
             print_error(module_name, strerror(errno), full_result_path);
             return 1;
         };
@@ -76,7 +76,7 @@ int count_function_values(const int array_size, const int taylor_members_count, 
     pid_t pid;
     int running_processes = 0;
     for (int i = 0; i < array_size; i++) {
-        double x = M_PI - (2 * M_PI * i) / array_size;
+        double x = (2 * M_PI * i) / array_size;
         for (int j = 0; j < taylor_members_count; j++) {
             if (running_processes == taylor_members_count){
                 wait(NULL);
