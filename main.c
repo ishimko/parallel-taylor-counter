@@ -76,7 +76,7 @@ int count_function_values(const int array_size, const int taylor_members_count, 
     pid_t pid;
     int running_processes = 0;
     for (int i = 0; i < array_size; i++) {
-        double x = (2 * M_PI * i) / array_size;
+        double x = M_PI - (2 * M_PI * i) / array_size;
         for (int j = 0; j < taylor_members_count; j++) {
             if (running_processes == taylor_members_count){
                 wait(NULL);
