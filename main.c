@@ -43,7 +43,7 @@ int write_result(const int array_size, FILE *tmp_file, FILE *result_file, const 
     }
 
     for (i = 0; i < array_size; i++) {
-        if (fprintf(result_file, "y[%d]=%.5lf\n", i, result[i]) == -1){
+        if (fprintf(result_file, "y[%d]=%.8lf\n", i, result[i]) == -1){
             print_error(module_name, strerror(errno), full_result_path);
             return 1;
         };
@@ -89,7 +89,7 @@ int count_function_values(const int array_size, const int taylor_members_count, 
 
             if (pid == 0) {
                 double member = get_sin_taylor_member(x, j);
-                if (fprintf(tmp_file, "%d %d %lf\n", getpid(), i, member) == -1){
+                if (fprintf(tmp_file, "%d %d %.8lf\n", getpid(), i, member) == -1){
                     print_error(module_name, "Error writing result to temp file", NULL);
                     return -1;
                 };
